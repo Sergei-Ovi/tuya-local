@@ -213,7 +213,14 @@ class TuyaLocalLock(TuyaLocalEntity, LockEntity):
 
     async def async_unlock(self, **kwargs):
         """Unlock the lock."""
-        if self._lock_dp and not self._lock_dp.readonly:
+        code = kwargs.get("code")
+        if code and self._code_unlock_dp:
+            msg = self.build_code_unlock_msg(
+                CODE_UNLOCK, member_id=1, code=code, source=CODE_SRC_UNKNOWN
+            )
+            _LOGGER.info("%s unlocking with code", self._config.config_id)
+            await self._code_unlock_dp.async_set_value(self._device, msg)
+        elif self._lock_dp and not self._lock_dp.readonly:
             _LOGGER.info("%s unlocking", self._config.config_id)
             await self._lock_dp.async_set_value(self._device, False)
         elif self._code_unlock_dp and self._set_code_dp:
@@ -230,14 +237,7 @@ class TuyaLocalLock(TuyaLocalEntity, LockEntity):
                 }
             )
         elif self._code_unlock_dp:
-            code = kwargs.get("code")
-            if not code:
-                raise ValueError("Code required to unlock")
-            msg = self.build_code_unlock_msg(
-                CODE_UNLOCK, member_id=1, code=code, source=CODE_SRC_UNKNOWN
-            )
-            _LOGGER.info("%s unlocking with code", self._config.config_id)
-            await self._code_unlock_dp.async_set_value(self._device, msg)
+            raise ValueError("Code required to unlock")
         elif self._approve_unlock_dp:
             if self._req_unlock_dp and not self._req_unlock_dp.get_value(self._device):
                 raise TimeoutError()

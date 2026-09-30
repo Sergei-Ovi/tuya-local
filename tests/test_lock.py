@@ -11,7 +11,58 @@ from custom_components.tuya_local.const import (
     CONF_TYPE,
     DOMAIN,
 )
+from custom_components.tuya_local.helpers.device_config import get_config
 from custom_components.tuya_local.lock import TuyaLocalLock, async_setup_entry
+
+from .helpers import assert_device_properties_set, mock_device
+
+RAYKUBE_DPS = {"9": "high", "46": True, "47": False}
+
+
+def _make_raykube_lock(mocker):
+    """Create a lock with both a lock dp and a code_unlock dp."""
+    config = get_config("raykube_a1promax_lock")
+    entity_config = next(
+        entity for entity in config.all_entities() if entity.entity == "lock"
+    )
+    device = mock_device(RAYKUBE_DPS, mocker)
+    return TuyaLocalLock(device, entity_config), device
+
+
+@pytest.mark.asyncio
+async def test_unlock_with_code_uses_code_unlock(mocker):
+    """A supplied code is sent with code_unlock rather than the lock dp."""
+    lock, device = _make_raykube_lock(mocker)
+
+    # action 1, member 1, code "12345678", source 0
+    async with assert_device_properties_set(device, {"61": "AQABMTIzNDU2NzgAAA=="}):
+        await lock.async_unlock(code="12345678")
+
+
+@pytest.mark.asyncio
+async def test_unlock_without_code_uses_lock_dp(mocker):
+    """Without a code, the lock dp is still used to unlock."""
+    lock, device = _make_raykube_lock(mocker)
+
+    async with assert_device_properties_set(device, {"46": False}):
+        await lock.async_unlock()
+
+
+PRIMEBRAS_DPS = {"46": True, "47": False}
+
+
+@pytest.mark.asyncio
+async def test_unlock_with_code_ignores_set_unlock_code(mocker):
+    """A supplied code is sent with code_unlock even if set_unlock_code exists."""
+    config = get_config("primebras_athenas_lock")
+    entity_config = next(
+        entity for entity in config.all_entities() if entity.entity == "lock"
+    )
+    device = mock_device(PRIMEBRAS_DPS, mocker)
+    lock = TuyaLocalLock(device, entity_config)
+
+    async with assert_device_properties_set(device, {"61": "AQABMTIzNDU2NzgAAA=="}):
+        await lock.async_unlock(code="12345678")
 
 
 @pytest.mark.asyncio
